@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from typing import List, Dict, Any
 import numpy as np
+import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings.ollama import OllamaEmbeddings
 from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
@@ -32,6 +33,11 @@ def parse_srt(srt_path: Path) -> List[Dict[str, Any]]:
         )
     return entries
 
+def srt_time_to_seconds(srt_time: str) -> float:
+    h, m, s_ms = srt_time.split(":")
+    s, ms = s_ms.split(".")
+    return int(h)*3600 + int(m)*60 + int(s) + int(ms)/1000
+
 def srt_entries_to_text(entries: List[Dict[str, Any]]) -> str:
     """Concatenate all SRT entries into a single text."""
     return " ".join(e["text"] for e in entries)
@@ -54,16 +60,35 @@ def main():
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_text(text)
 
-    # Map chunk to SRT time range
+    # Load scene info (scenes.json)
+    scenes_json = None
+    scenes_dir = args.srt_path.parent.parent / "scenes" / args.srt_path.parent.stem
+    scenes_json_path = scenes_dir / "scenes.json"
+    if scenes_json_path.exists():
+        with open(scenes_json_path, "r", encoding="utf-8") as f:
+            scenes_json = json.load(f)
+    else:
+        print(f"Warning: scenes.json not found at {scenes_json_path}. Frames will not be added to metadata.")
+
+    # Map chunk to SRT time range and scene frames
     chunk_meta = []
     entry_idx = 0
     for i, chunk in enumerate(chunks):
-        # Find the first SRT entry that appears in this chunk
         while entry_idx < len(entries) and entries[entry_idx]["text"] not in chunk:
             entry_idx += 1
         start = entries[entry_idx]["start"] if entry_idx < len(entries) else "00:00:00.000"
         end = entries[entry_idx]["end"] if entry_idx < len(entries) else "00:00:00.000"
-        chunk_meta.append({"start": start, "end": end, "chunk_id": i})
+        # Find scene for this chunk
+        frames = []
+        if scenes_json:
+            chunk_start_sec = srt_time_to_seconds(start)
+            chunk_end_sec = srt_time_to_seconds(end)
+            for scene in scenes_json:
+                if chunk_start_sec >= scene["start"] and chunk_end_sec <= scene["end"]:
+                    frames = scene["frames"]
+                    break
+        # print({"start": start, "end": end, "chunk_id": i, "frames": frames})
+        chunk_meta.append({"start": start, "end": end, "chunk_id": i, "frames": frames})
 
     # Choose embedding function
     if args.embedder == "llama":

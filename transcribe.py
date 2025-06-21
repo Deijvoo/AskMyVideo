@@ -27,7 +27,7 @@ def transcribe_to_srt(
     Returns the path to the SRT file.
     """
     model = whisper.load_model(model_name)
-    result = model.transcribe(str(audio_path), task="transcribe", verbose=True)
+    result = model.transcribe(str(audio_path), task="transcribe", verbose=False)
     if srt_out_path is None:
         srt_out_path = audio_path.with_suffix(".srt")
     with open(srt_out_path, "w", encoding="utf-8") as f:

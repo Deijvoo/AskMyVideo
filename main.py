@@ -1,43 +1,59 @@
+import argparse
 import subprocess
-from pathlib import Path
 import sys
-
-def run_process_video(video_path):
-    print(f"[1/4] Extracting audio from {video_path}...")
-    subprocess.run([sys.executable, 'process_video.py', str(video_path)], check=True, cwd=Path(__file__).parent)
-
-def run_transcribe(audio_path):
-    print(f"[2/4] Transcribing {audio_path}...")
-    subprocess.run([sys.executable, 'transcribe.py', str(audio_path)], check=True, cwd=Path(__file__).parent)
-
-def run_chunk_embed(srt_path):
-    print(f"[3/4] Chunking and embedding {srt_path}...")
-    subprocess.run([sys.executable, 'chunk_embed.py', str(srt_path)], check=True, cwd=Path(__file__).parent)
-
-def run_ask(faiss_path, question):
-    print(f"[4/4] Answering: {question}")
-    subprocess.run([sys.executable, 'ask.py', str(faiss_path), question], check=True, cwd=Path(__file__).parent)
+from pathlib import Path
 
 def main():
-    video_path = Path(input("Paste the full path to your video file (.mp4): ").strip())
+    """
+    Main script to orchestrate the video processing and Q&A pipeline.
+    
+    Usage:
+        python main.py /path/to/your/video.mp4 [--no-images]
+    """
+    parser = argparse.ArgumentParser(description="Full pipeline to process a video and start an interactive Q&A session.")
+    parser.add_argument("video_path", type=Path, help="Path to the video file.")
+    parser.add_argument("--no-images", action="store_true", help="Run the Q&A session in text-only mode.")
+    args = parser.parse_args()
+
+    video_path = args.video_path.resolve()
     if not video_path.exists():
-        print(f"Error: File {video_path} does not exist.")
-        return
+        print(f"Error: Video file not found at {video_path}")
+        sys.exit(1)
+
+    # Define paths
+    video_dir = Path(__file__).parent.resolve()
     video_stem = video_path.stem
     out_dir = video_path.parent / video_stem
-    audio_path = out_dir / f'{video_stem}.mp3'
-    srt_path = out_dir / f'{video_stem}.srt'
-    faiss_path = out_dir / f'{video_stem}.faiss'
+    srt_path = out_dir / f"{video_stem}.srt"
+    faiss_path = out_dir / f"{video_stem}.faiss"
 
-    if not audio_path.exists():
-        run_process_video(video_path)
-    if not srt_path.exists():
-        run_transcribe(audio_path)
-    if not faiss_path.exists():
-        run_chunk_embed(srt_path)
+    # --- Step 1: Process Video (Audio, Transcription, Frames) ---
+    print("--- Running Step 1: Video Processing ---")
+    subprocess.run([
+        sys.executable, str(video_dir / 'process_video.py'), str(video_path)
+    ], check=True)
+    print("--- Step 1 Complete ---\n")
 
-    question = input("Enter your question about the video: ")
-    run_ask(faiss_path, question)
+    # --- Step 2: Chunk and Embed Transcript ---
+    print("--- Running Step 2: Chunking and Embedding ---")
+    subprocess.run([
+        sys.executable, str(video_dir / 'chunk_embed.py'), str(srt_path)
+    ], check=True)
+    print("--- Step 2 Complete ---\n")
+
+    # --- Step 3: Start Interactive Q&A Session ---
+    print("--- Running Step 3: Starting Q&A Session ---")
+    ask_command = [
+        sys.executable, str(video_dir / 'ask_ai.py'), str(faiss_path)
+    ]
+    if args.no_images:
+        ask_command.append("--no-images")
+    
+    print(f"Starting chat for {video_path.name}...")
+    if args.no_images:
+        print("Running in text-only mode.")
+    
+    subprocess.run(ask_command)
 
 if __name__ == "__main__":
     main() 
