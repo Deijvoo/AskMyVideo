@@ -1,0 +1,12 @@
+yt-dlp==2024.4.9
+ffmpeg-python>=0.2.0
+openai-whisper>=20231117
+langchain>=0.1.16
+langchain-community>=0.0.34
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+numpy>=1.23.0
+scipy>=1.10.0
+python-dotenv>=1.0.0
+streamlit==1.34.0
+pytest==8.2.2 
